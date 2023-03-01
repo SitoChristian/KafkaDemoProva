@@ -7,6 +7,7 @@ import java.util.Properties;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
@@ -35,9 +36,7 @@ public class ConsumerDemoWithShutdown {
 		//set proprietà del producer
 		prop.setProperty("key.deserializer", StringDeserializer.class.getName());
 		prop.setProperty("value.deserializer", StringDeserializer.class.getName());
-
 		prop.setProperty("group.id", groupId);
-		
 		prop.setProperty("auto.offset.reset", "earliest");
 		
 		//creazione del consumer
@@ -46,23 +45,65 @@ public class ConsumerDemoWithShutdown {
 		//get thread principale
 		final Thread mainThread = Thread.currentThread();
 		
-		//subscribe topic
-		consumer.subscribe(Arrays.asList(topic));
-		
-		//pooling per dati
-		while (true) {
-			
-			log.info("Polling");
-			
-			ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
-			
-			for(ConsumerRecord<String, String> record: records) {
+		//aggiunta del gancio(hook) per eseguire lo spegnimento
+		Runtime.getRuntime().addShutdownHook( new Thread() {
+			public void run() {
 				
-				log.info("Key: " + record.key() + ", Value: " + record.value());
-				log.info("Partition: " + record.partition() + ", Offset: " + record.offset());
+				log.info("Rilevato uno spegnimento, usciamo chiamando consumer.wakeup()...");
+				consumer.wakeup();
+				log.info("| consumer.wakeup()");
 				
+
+				try {
+					mainThread.join();
+					log.info("| maintThread.join()");
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					log.error("Eccezione: ",e);
+				} catch (Exception e) {
+					log.error("Eccezione: ",e);
+				}
 			}
+		});
+		
+		try {
+			
+			//subscribe topic
+			consumer.subscribe(Arrays.asList(topic));
+			
+			int conta = 0;
+			//pooling per dati
+			while (true) {
+				
+				log.info("Polling");
+				
+				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+				
+				for(ConsumerRecord<String, String> record: records) {
+					
+					log.info("Key: " + record.key() + ", Value: " + record.value());
+					log.info("Partition: " + record.partition() + ", Offset: " + record.offset());
+			
+				}
+				
+				conta++;
+				
+				if(conta>5) {
+					log.info("AVVIO SPEGNIMENTO");
+					System.exit(0);
+				}
+			}
+			
+		} catch	(WakeupException e) {
+			log.info("Consumer in spegnimento");
+		} catch (Exception e) {
+			log.error("Eccezzione inaspettata nel consumer", e);
+		} finally {
+			consumer.close(); //spegne il consumer
+			log.info("Il consumer si è spetto");
 		}
+		
+
 	}
 
 }

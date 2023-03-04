@@ -44,7 +44,8 @@ public class ConsumerDemoWithShutdown {
 		
 		//get thread principale
 		final Thread mainThread = Thread.currentThread();
-		
+			
+			
 		//aggiunta del gancio(hook) per eseguire lo spegnimento
 		Runtime.getRuntime().addShutdownHook( new Thread() {
 			public void run() {
@@ -66,8 +67,8 @@ public class ConsumerDemoWithShutdown {
 			}
 		});
 		
-		try {
-			
+
+		try {	
 			//subscribe topic
 			consumer.subscribe(Arrays.asList(topic));
 			
@@ -75,23 +76,25 @@ public class ConsumerDemoWithShutdown {
 			//pooling per dati
 			while (true) {
 				
+				conta++;
+				
 				log.info("Polling");
 				
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+				
+				if(conta>5) {
+					log.info("AVVIO SPEGNIMENTO");
+					System.exit(0);
+				}
 				
 				for(ConsumerRecord<String, String> record: records) {
 					
 					log.info("Key: " + record.key() + ", Value: " + record.value());
 					log.info("Partition: " + record.partition() + ", Offset: " + record.offset());
 			
+
 				}
 				
-				conta++;
-				
-				if(conta>5) {
-					log.info("AVVIO SPEGNIMENTO");
-					System.exit(0);
-				}
 			}
 			
 		} catch	(WakeupException e) {
